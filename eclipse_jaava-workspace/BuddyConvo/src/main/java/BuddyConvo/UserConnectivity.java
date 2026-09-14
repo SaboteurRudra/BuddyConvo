@@ -1,36 +1,94 @@
-public User login(String username, String password) {
+package BuddyConvo;
 
-    String sql = "SELECT * FROM users WHERE username = ? AND password = ?";
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
-    try (Connection con = DBConnection.getConnection();
-         PreparedStatement ps = con.prepareStatement(sql)) {
+public class UserConnectivity {
 
-        ps.setString(1, username);
-        ps.setString(2, password);
+    public boolean register(String name, String email,
+                            String username, String password) {
 
-        ResultSet rs = ps.executeQuery();
+        String sql = "INSERT INTO users (name, email, username, password) "
+                   + "VALUES (?, ?, ?, ?)";
 
-        if (rs.next()) {
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
 
-            User user = new User();
+            if (con == null) {
+                System.out.println("DATABASE CONNECTION FAILED");
+                return false;
+            }
 
-            user.setId(rs.getInt("id"));
-            user.setName(rs.getString("name"));
-            user.setEmail(rs.getString("email"));
-            user.setUsername(rs.getString("username"));
-            user.setPassword(rs.getString("password"));
-            user.setStatus(rs.getString("status"));
+            ps.setString(1, name);
+            ps.setString(2, email);
+            ps.setString(3, username);
+            ps.setString(4, password);
 
-            return user;
+            ps.executeUpdate();
+
+            System.out.println("REGISTRATION SUCCESSFUL");
+
+            return true;
+
+        } catch (Exception e) {
+
+            System.out.println("REGISTRATION ERROR:");
+            e.printStackTrace();
+
+            return false;
         }
-
-    } catch (Exception e) {
-
-        System.out.println("LOGIN ERROR:");
-        e.printStackTrace();
     }
 
-    return null;
-}
+    public User login(String username, String password) {
 
-		
+        String sql = "SELECT * FROM users "
+                   + "WHERE username = ? AND password = ?";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            if (con == null) {
+                System.out.println("DATABASE CONNECTION FAILED");
+                return null;
+            }
+
+            ps.setString(1, username);
+            ps.setString(2, password);
+
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+
+                User user = new User();
+
+                user.setId(rs.getInt("id"));
+                user.setName(rs.getString("name"));
+                user.setEmail(rs.getString("email"));
+                user.setUsername(rs.getString("username"));
+                user.setPassword(rs.getString("password"));
+
+                String status = rs.getString("status");
+
+                if (status == null) {
+                    status = "offline";
+                }
+
+                user.setStatus(status);
+
+                System.out.println("LOGIN SUCCESSFUL: " + username);
+
+                return user;
+            }
+
+            System.out.println("INVALID USERNAME OR PASSWORD");
+
+        } catch (Exception e) {
+
+            System.out.println("LOGIN ERROR:");
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+}
