@@ -1,35 +1,48 @@
 package BuddyConvo;
 
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 
 @WebServlet("/login")
 public class LoginServlet extends HttpServlet {
-
-    protected void doPost(
-            HttpServletRequest request,
-            HttpServletResponse response)
+    @Override
+    protected void doPost(HttpServletRequest request,
+                           HttpServletResponse response)
             throws ServletException, IOException {
 
         String username = request.getParameter("username");
         String password = request.getParameter("password");
 
-        UserConnectivity connecti = new UserConnectivity();
+        System.out.println("LOGIN ATTEMPT: " + username);
 
-        User user = connecti.login(username, password);
+        UserConnectivity connectivity = new UserConnectivity();
+        User user = connectivity.login(username, password);
 
         if (user != null) {
 
-            HttpSession session = request.getSession();
+            System.out.println("LOGIN SUCCESSFUL: " + username);
+
+            HttpSession session = request.getSession(true);
             session.setAttribute("user", user);
 
-            response.sendRedirect("home.jsp");
+            response.sendRedirect(
+                request.getContextPath() + "/home.jsp"
+            );
 
         } else {
 
-            response.sendRedirect("login.jsp?error=true");
+            System.out.println("LOGIN FAILED: " + username);
+
+            response.sendRedirect(
+                request.getContextPath() + "/login.jsp?error=true"
+            );
         }
     }
 }
+
+   
