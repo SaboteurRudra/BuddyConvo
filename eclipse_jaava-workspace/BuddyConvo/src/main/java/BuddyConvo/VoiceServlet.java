@@ -9,10 +9,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 @WebServlet("/voice")
 public class VoiceServlet extends HttpServlet {
+
+    private static final long serialVersionUID = 1L;
 
     private static final String API_URL =
             "https://api.elevenlabs.io/v1/text-to-speech/";
@@ -23,60 +26,76 @@ public class VoiceServlet extends HttpServlet {
             throws IOException {
 
         String apiKey = System.getenv("ELEVENLABS_API_KEY");
-
         String voiceId = System.getenv("ELEVENLABS_VOICE_ID");
 
-        if (voiceId == null || voiceId.isEmpty()) {
-            voiceId = "JBFqnCBsd6RMkjVDRZzb";
-        }
+        if (apiKey == null || apiKey.trim().isEmpty()) {
 
-        if (apiKey == null || apiKey.isEmpty()) {
             response.sendError(
                     HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "ElevenLabs API key is not configured."
+                    "ELEVENLABS_API_KEY is missing in Render."
             );
+
+            return;
+        }
+
+        if (voiceId == null || voiceId.trim().isEmpty()) {
+
+            response.sendError(
+                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "ELEVENLABS_VOICE_ID is missing in Render."
+            );
+
             return;
         }
 
         String text = request.getParameter("text");
 
         if (text == null || text.trim().isEmpty()) {
+
             response.sendError(
                     HttpServletResponse.SC_BAD_REQUEST,
-                    "Text is required."
+                    "Please enter a message."
             );
+
             return;
         }
 
+        text = text.trim();
+
         if (text.length() > 1000) {
+
             response.sendError(
                     HttpServletResponse.SC_BAD_REQUEST,
                     "Message is too long."
             );
+
             return;
         }
 
         String safeText = text
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "");
+                .replace("\r", "")
+                .replace("\n", "\\n");
 
-        String body =
+        String json =
                 "{"
                 + "\"text\":\"" + safeText + "\","
                 + "\"model_id\":\"eleven_multilingual_v2\""
                 + "}";
 
-        URI uri = URI.create(
-                API_URL + voiceId + "?output_format=mp3_44100_128"
+        URL url = new URL(
+                API_URL + voiceId
+                + "?output_format=mp3_44100_128"
         );
 
         HttpURLConnection connection =
-                (HttpURLConnection) uri.toURL().openConnection();
+                (HttpURLConnection) url.openConnection();
 
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(60000);
 
         connection.setRequestProperty(
                 "xi-api-key",
@@ -88,11 +107,16 @@ public class VoiceServlet extends HttpServlet {
                 "application/json"
         );
 
+        connection.setRequestProperty(
+                "Accept",
+                "audio/mpeg"
+        );
+
         try (OutputStream output =
                      connection.getOutputStream()) {
 
             output.write(
-                    body.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                    json.getBytes(StandardCharsets.UTF_8)
             );
         }
 
@@ -101,6 +125,11 @@ public class VoiceServlet extends HttpServlet {
         if (status >= 200 && status < 300) {
 
             response.setContentType("audio/mpeg");
+            response.setHeader(
+                    "Cache-Control",
+                    "no-cache"
+            );
+
             try (InputStream input =
                          connection.getInputStream();
                  OutputStream output =
@@ -111,14 +140,37 @@ public class VoiceServlet extends HttpServlet {
                 int bytes;
 
                 while ((bytes = input.read(buffer)) != -1) {
+
                     output.write(buffer, 0, bytes);
                 }
+
+                output.flush();
             }
 
         } else {
+
+            InputStream errorStream =
+                    connection.getErrorStream();
+
+            String errorMessage = "";
+
+            if (errorStream != null) {
+
+                errorMessage = new String(
+                        errorStream.readAllBytes(),
+                        StandardCharsets.UTF_8
+                );
+            }
+            System.out.println(
+                    "ELEVENLABS ERROR "
+                    + status
+                    + ": "
+                    + errorMessage
+            );
+
             response.sendError(
                     status,
-                    "ElevenLabs voice generation failed."
+                    "ElevenLabs error: " + errorMessage
             );
         }
         connection.disconnect();
