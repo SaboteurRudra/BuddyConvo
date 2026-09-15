@@ -25,11 +25,9 @@ public class LoginServlet extends HttpServlet {
         User user = userConnectivity.login(username, password);
 
         if (user != null) {
-
-            HttpSession session = request.getSession();
-            session.setAttribute("user", username);
-
-            response.sendRedirect(request.getContextPath() + "/home.jsp");
+    HttpSession session = request.getSession();
+    session.setAttribute("user", user);
+    response.sendRedirect(request.getContextPath() + "/home.jsp");
 
         } else {
 
