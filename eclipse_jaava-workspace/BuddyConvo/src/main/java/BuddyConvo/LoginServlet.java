@@ -22,23 +22,25 @@ public class LoginServlet extends HttpServlet {
 
         UserConnectivity userConnectivity = new UserConnectivity();
 
-        boolean validUser = userConnectivity.loginUser(username, password);
+        User user = userConnectivity.login(username, password);
 
-        if (validUser) {
+        if (user != null) {
 
             HttpSession session = request.getSession();
             session.setAttribute("user", username);
 
-            response.sendRedirect("home.jsp");
+            response.sendRedirect(request.getContextPath() + "/home.jsp");
 
         } else {
-            response.sendRedirect("login.jsp?error=Invalid%20username%20or%20password");
+
+            response.sendRedirect(request.getContextPath()
+                    + "/login.jsp?error=Invalid%20username%20or%20password");
         }
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        response.sendRedirect("login.jsp");
+        response.sendRedirect(request.getContextPath() + "/login.jsp");
     }
 }
