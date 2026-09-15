@@ -11,7 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 @WebServlet("/messages")
-public class MessagesServlet extends HttpServlet {
+public class MessageServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest request,
