@@ -14,7 +14,9 @@ public class LoginServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
 
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+    @Override
+    protected void doPost(HttpServletRequest request,
+                           HttpServletResponse response)
             throws ServletException, IOException {
 
         String username = request.getParameter("username");
@@ -25,20 +27,30 @@ public class LoginServlet extends HttpServlet {
         User user = userConnectivity.login(username, password);
 
         if (user != null) {
-    HttpSession session = request.getSession();
-    session.setAttribute("user", user);
-    response.sendRedirect(request.getContextPath() + "/home.jsp");
+
+            HttpSession session = request.getSession();
+            session.setAttribute("user", user);
+
+            response.sendRedirect(
+                request.getContextPath() + "/home.jsp"
+            );
 
         } else {
 
-            response.sendRedirect(request.getContextPath()
-                    + "/login.jsp?error=Invalid%20username%20or%20password");
+            response.sendRedirect(
+                request.getContextPath()
+                + "/login.jsp?error=Invalid%20username%20or%20password"
+            );
         }
     }
 
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+    @Override
+    protected void doGet(HttpServletRequest request,
+                         HttpServletResponse response)
             throws ServletException, IOException {
 
-        response.sendRedirect(request.getContextPath() + "/login.jsp");
+        response.sendRedirect(
+            request.getContextPath() + "/login.jsp"
+        );
     }
 }
