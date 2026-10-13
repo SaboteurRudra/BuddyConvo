@@ -112,7 +112,8 @@ label {
 
     <h2>Login</h2>
 
-    <form action="login" method="post">
+ <form action="${pageContext.request.contextPath}/login"
+      method="post">
 
         <label>Username</label>
 
@@ -142,7 +143,8 @@ label {
 
     <h2>Create Account</h2>
 
-    <form action="register" method="post">
+    <form action="${pageContext.request.contextPath}/register"
+      method="post">
 
         <label>Full Name</label>
 
