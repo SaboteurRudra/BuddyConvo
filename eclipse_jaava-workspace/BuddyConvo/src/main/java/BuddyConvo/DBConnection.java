@@ -1,5 +1,6 @@
 package BuddyConvo;
 
+import java.net.URI;
 import java.sql.Connection;
 import java.sql.DriverManager;
 
@@ -14,10 +15,11 @@ public class DBConnection {
 
     public static Connection getConnection() {
         try {
-            String url = resolveJdbcUrl();
+            DatabaseConfig config = resolveDatabaseConfig();
             Class.forName("com.mysql.cj.jdbc.Driver");
 
-            Connection connection = DriverManager.getConnection(url, USER, PASSWORD);
+            Connection connection = DriverManager.getConnection(
+                    config.url, config.username, config.password);
             System.out.println("DATABASE CONNECTED SUCCESSFULLY");
             return connection;
         } catch (Exception e) {
@@ -27,18 +29,15 @@ public class DBConnection {
         }
     }
 
-    private static String resolveJdbcUrl() {
-        if (DB_URL != null && !DB_URL.isBlank()) {
-            String url = DB_URL.trim();
-            if (url.startsWith("mysql://")) {
-                url = "jdbc:" + url;
-            }
+    private static DatabaseConfig resolveDatabaseConfig() {
+        if (!isBlank(DB_URL)) {
+            String url = toJdbcUrl(DB_URL.trim());
             if (!url.startsWith("jdbc:mysql://")) {
                 throw new IllegalStateException(
                         "DB_URL must be a MySQL JDBC URL (jdbc:mysql://host:port/database).");
             }
             requireCredentials();
-            return url;
+            return new DatabaseConfig(url, USER, PASSWORD);
         }
 
         if (isBlank(HOST) || isBlank(DATABASE) || isBlank(USER) || isBlank(PASSWORD)) {
@@ -47,8 +46,31 @@ public class DBConnection {
         }
 
         String port = isBlank(PORT) ? "3306" : PORT.trim();
-        return "jdbc:mysql://" + HOST.trim() + ":" + port + "/" + DATABASE.trim()
+        String url = "jdbc:mysql://" + HOST.trim() + ":" + port + "/" + DATABASE.trim()
                 + "?useSSL=true&requireSSL=true&serverTimezone=UTC";
+        return new DatabaseConfig(url, USER, PASSWORD);
+    }
+
+    private static String toJdbcUrl(String configuredUrl) {
+        if (!configuredUrl.startsWith("mysql://")) {
+            return configuredUrl;
+        }
+
+        URI uri = URI.create(configuredUrl);
+        String databasePath = uri.getRawPath();
+        if (isBlank(uri.getHost()) || isBlank(databasePath) || "/".equals(databasePath)) {
+            throw new IllegalStateException("DB_URL must include a MySQL host and database name.");
+        }
+
+        StringBuilder jdbcUrl = new StringBuilder("jdbc:mysql://").append(uri.getHost());
+        if (uri.getPort() != -1) {
+            jdbcUrl.append(":").append(uri.getPort());
+        }
+        jdbcUrl.append(databasePath);
+        if (uri.getRawQuery() != null) {
+            jdbcUrl.append('?').append(uri.getRawQuery());
+        }
+        return jdbcUrl.toString();
     }
 
     private static void requireCredentials() {
@@ -59,5 +81,17 @@ public class DBConnection {
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static final class DatabaseConfig {
+        private final String url;
+        private final String username;
+        private final String password;
+
+        private DatabaseConfig(String url, String username, String password) {
+            this.url = url;
+            this.username = username;
+            this.password = password;
+        }
     }
 }
