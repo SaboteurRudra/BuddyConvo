@@ -93,6 +93,17 @@ label {
     font-size: 14px;
 }
 
+.auth-notice {
+    margin: 0 0 20px;
+    padding: 12px 14px;
+    border: 1px solid #7f1d1d;
+    border-radius: 10px;
+    background: #351b25;
+    color: #fecaca;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
 </style>
 
 </head>
@@ -109,6 +120,26 @@ label {
         Connect. Chat. Share.
     </div>
 
+    <%
+        String authError = request.getParameter("error");
+        String errorMessage = null;
+
+        if ("Invalid username or password".equals(authError)) {
+            errorMessage = "That username and password did not match. Please try again.";
+        } else if ("Registration successful but login failed".equals(authError)) {
+            errorMessage = "Your account was created, but automatic sign-in failed. Please log in below.";
+        } else if ("Registration failed".equals(authError)) {
+            errorMessage = "We could not create the account. Check that the username and email are available; if the problem continues, the database may be unavailable.";
+        } else if (authError != null && !authError.isBlank()) {
+            errorMessage = "We could not complete that request. Please try again.";
+        }
+
+        if (errorMessage != null) {
+    %>
+        <div class="auth-notice" role="alert"><%= errorMessage %></div>
+    <%
+        }
+    %>
 
     <h2>Login</h2>
 
