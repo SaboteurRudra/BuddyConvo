@@ -1,107 +1,84 @@
+
 package BuddyConvo;
 
+import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.*;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.*;
+import java.util.*;
 
-@WebServlet("/messages")
-public class MessageServlet extends HttpServlet {
+@WebServlet("/conversations")
+public class MessagesServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest request,
-                          HttpServletResponse response)
-            throws IOException {
-
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
+                         HttpServletResponse response)
+            throws ServletException, IOException {
 
         HttpSession session = request.getSession(false);
 
         if (session == null || session.getAttribute("user") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().print("[]");
+            response.sendRedirect(request.getContextPath() + "/login.jsp");
             return;
         }
 
         User currentUser = (User) session.getAttribute("user");
-
-        String receiverText = request.getParameter("receiverId");
-
-        if (receiverText == null) {
-            response.getWriter().print("[]");
-            return;
-        }
-
-        int receiverId = Integer.parseInt(receiverText);
+        List<Map<String, Object>> conversations = new ArrayList<>();
 
         String sql =
-                "SELECT id, sender_id, receiver_id, message, " +
-                "message_type, unlock_time, sent_at " +
-                "FROM messages " +
-                "WHERE (sender_id = ? AND receiver_id = ?) " +
-                "OR (sender_id = ? AND receiver_id = ?) " +
-                "ORDER BY sent_at ASC";
+            "SELECT u.id AS peer_id, u.name, u.username, " +
+            "m.message, m.message_type, m.sent_at, m.sender_id " +
+            "FROM users u " +
+            "JOIN messages m ON m.id = (" +
+            " SELECT m2.id FROM messages m2 " +
+            " WHERE (m2.sender_id = ? AND m2.receiver_id = u.id) " +
+            " OR (m2.sender_id = u.id AND m2.receiver_id = ?) " +
+            " ORDER BY m2.sent_at DESC, m2.id DESC LIMIT 1" +
+            ") " +
+            "WHERE u.id <> ? " +
+            "AND EXISTS (SELECT 1 FROM messages mx " +
+            " WHERE (mx.sender_id = ? AND mx.receiver_id = u.id) " +
+            " OR (mx.sender_id = u.id AND mx.receiver_id = ?)) " +
+            "ORDER BY m.sent_at DESC, m.id DESC";
 
-        StringBuilder json = new StringBuilder("[");
-        boolean first = true;
-
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
+        try (Connection con = DBConnection.getConnection()) {
 
             if (con == null) {
-                response.getWriter().print("[]");
-                return;
+                throw new SQLException("Database connection unavailable");
             }
 
-            ps.setInt(1, currentUser.getId());
-            ps.setInt(2, receiverId);
-            ps.setInt(3, receiverId);
-            ps.setInt(4, currentUser.getId());
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setInt(1, currentUser.getId());
+                ps.setInt(2, currentUser.getId());
+                ps.setInt(3, currentUser.getId());
+                ps.setInt(4, currentUser.getId());
+                ps.setInt(5, currentUser.getId());
 
-            ResultSet rs = ps.executeQuery();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Map<String, Object> item = new HashMap<>();
 
-            while (rs.next()) {
+                        item.put("peerId", rs.getInt("peer_id"));
+                        item.put("name", rs.getString("name"));
+                        item.put("username", rs.getString("username"));
+                        item.put("message", rs.getString("message"));
+                        item.put("messageType",
+                                 rs.getString("message_type"));
+                        item.put("sentAt", rs.getTimestamp("sent_at"));
+                        item.put("senderId", rs.getInt("sender_id"));
 
-                if (!first) {
-                    json.append(",");
+                        conversations.add(item);
+                    }
                 }
-
-                first = false;
-
-                String message = rs.getString("message")
-                        .replace("\\", "\\\\")
-                        .replace("\"", "\\\"")
-                        .replace("\n", "\\n");
-
-                String type = rs.getString("message_type");
-
-                String unlock = rs.getString("unlock_time");
-
-                json.append("{")
-                    .append("\"id\":").append(rs.getInt("id")).append(",")
-                    .append("\"senderId\":").append(rs.getInt("sender_id")).append(",")
-                    .append("\"receiverId\":").append(rs.getInt("receiver_id")).append(",")
-                    .append("\"message\":\"").append(message).append("\",")
-                    .append("\"type\":\"").append(type).append("\",")
-                    .append("\"unlockTime\":\"")
-                    .append(unlock == null ? "" : unlock)
-                    .append("\",")
-                    .append("\"sentAt\":\"")
-                    .append(rs.getString("sent_at"))
-                    .append("\"")
-                    .append("}");
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        json.append("]");
 
-        response.getWriter().print(json);
+            request.setAttribute("conversations", conversations);
+            request.getRequestDispatcher("/messages.jsp")
+                   .forward(request, response);
+
+        } catch (SQLException e) {
+            throw new ServletException("Unable to load conversations", e);
+        }
     }
 }
