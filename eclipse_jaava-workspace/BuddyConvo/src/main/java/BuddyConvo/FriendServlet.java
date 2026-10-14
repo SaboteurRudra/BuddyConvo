@@ -1,97 +1,68 @@
+
 package BuddyConvo;
 
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
-@WebServlet("/addFriend")
-public class FriendServlet extends HttpServlet {
+@WebServlet("/friends")
+public class FriendsServlet extends HttpServlet {
 
-    protected void doPost(
-            HttpServletRequest request,
-            HttpServletResponse response)
+    @Override
+    protected void doGet(HttpServletRequest request,
+                         HttpServletResponse response)
             throws ServletException, IOException {
 
-        String username = request.getParameter("username");
+        HttpSession session = request.getSession(false);
 
-        HttpSession session = request.getSession();
-
-        User currentUser =
-                (User) session.getAttribute("user");
-
-        if (currentUser == null) {
+        if (session == null || session.getAttribute("user") == null) {
             response.sendRedirect("login.jsp");
             return;
         }
 
+        User currentUser = (User) session.getAttribute("user");
+        List<User> friends = new ArrayList<>();
+
         String sql =
-            "SELECT id FROM users WHERE username = ?";
+            "SELECT DISTINCT u.id, u.name, u.username " +
+            "FROM friends f " +
+            "JOIN users u ON u.id = " +
+            "CASE WHEN f.user_id = ? THEN f.friend_id " +
+            "ELSE f.user_id END " +
+            "WHERE f.user_id = ? OR f.friend_id = ? " +
+            "ORDER BY u.username";
 
-        try (Connection con = DBConnection.getConnection();
-             PreparedStatement ps =
-                     con.prepareStatement(sql)) {
-
-            ps.setString(1, username);
-
-            ResultSet rs = ps.executeQuery();
-
-            if (!rs.next()) {
-
-                response.getWriter().println(
-                    "User not found! <br><br>" +
-                    "<a href='friends.jsp'>Go Back</a>"
-                );
-
-                return;
+        try (Connection con = DBConnection.getConnection()) {
+            if (con == null) {
+                throw new SQLException("Database connection unavailable");
             }
 
-            int friendId = rs.getInt("id");
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setInt(1, currentUser.getId());
+                ps.setInt(2, currentUser.getId());
+                ps.setInt(3, currentUser.getId());
 
-            if (friendId == currentUser.getId()) {
-
-                response.getWriter().println(
-                    "You cannot add yourself! <br><br>" +
-                    "<a href='friends.jsp'>Go Back</a>"
-                );
-
-                return;
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        User friend = new User();
+                        friend.setId(rs.getInt("id"));
+                        friend.setName(rs.getString("name"));
+                        friend.setUsername(rs.getString("username"));
+                        friends.add(friend);
+                    }
+                }
             }
 
-            String insert =
-                "INSERT INTO friends " +
-                "(user_id, friend_id) VALUES (?, ?)";
+            request.setAttribute("friends", friends);
+            request.getRequestDispatcher("/friends.jsp")
+                   .forward(request, response);
 
-            try (PreparedStatement add =
-                    con.prepareStatement(insert)) {
-
-                add.setInt(1, currentUser.getId());
-                add.setInt(2, friendId);
-
-                add.executeUpdate();
-            }
-
-            response.getWriter().println(
-                "<h2>Friend added successfully! 🎉</h2>" +
-                "<a href='home.jsp'>Go to Home</a>"
-            );
-
-        } catch (SQLIntegrityConstraintViolationException e) {
-
-            response.getWriter().println(
-                "<h2>This user is already your friend.</h2>" +
-                "<a href='friends.jsp'>Go Back</a>"
-            );
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
-
-            response.getWriter().println(
-                "Error adding friend.<br>" +
-                e.getMessage()
-            );
+        } catch (SQLException e) {
+            throw new ServletException("Could not load friends", e);
         }
     }
 }
